@@ -25,20 +25,9 @@ try:
 except ImportError:
     exit("This script requires the requests module\nInstall with: sudo pip install requests")
 
-try:
-    import geocoder
-except ImportError:
-    exit("This script requires the geocoder module\nInstall with: sudo pip install geocoder")
-
-try:
-    from bs4 import BeautifulSoup
-except ImportError:
-    exit("This script requires the bs4 module\nInstall with: sudo pip install beautifulsoup4==4.6.3")
-
-
 print("""Inky pHAT: Weather
 
-Displays weather information for a given location. The default location is Sheffield-on-Sea.
+Displays weather information for a given location. The default location is Yeovil.
 
 """)
 
@@ -59,34 +48,20 @@ inky_display.set_border(inky_display.BLACK)
 
 # Details to customise your weather display
 
-CITY = "Sheffield"
+CITY = "Yeovil"
 COUNTRYCODE = "GB"
 WARNING_TEMP = 25.0
 
-
-# Convert a city name and country code to latitude and longitude
-def get_coords(address):
-    g = geocoder.arcgis(address)
-    coords = g.latlng
-    return coords
-
-
-# Query Dark Sky (https://darksky.net/) to scrape current weather data
+# Query openweathermap
 def get_weather(address):
-    coords = get_coords(address)
-    weather = {}
-    res = requests.get("https://darksky.net/forecast/{}/uk212/en".format(",".join([str(c) for c in coords])))
-    if res.status_code == 200:
-        soup = BeautifulSoup(res.content, "lxml")
-        curr = soup.find_all("span", "currently")
-        weather["summary"] = curr[0].img["alt"].split()[0]
-        weather["temperature"] = int(curr[0].find("span", "summary").text.split()[0][:-1])
-        press = soup.find_all("div", "pressure")
-        weather["pressure"] = int(press[0].find("span", "num").text)
-        return weather
-    else:
-        return weather
+    base = "http://api.openweathermap.org/data/2.5/weather?q="
+    units = "units=metric"
+    api = "bdb2c0e7051c37f100278769685d64e9"
 
+    uri= base + address + "&" + units + "&appid=" + api
+
+    res = requests.get(uri).json()
+    return res
 
 def create_mask(source, mask=(inky_display.WHITE, inky_display.BLACK, inky_display.RED)):
     """Create a transparency mask.
@@ -117,15 +92,16 @@ masks = {}
 location_string = "{city}, {countrycode}".format(city=CITY, countrycode=COUNTRYCODE)
 weather = get_weather(location_string)
 
-# This maps the weather summary from Dark Sky
+# This maps the weather codes from the openweathermap API
 # to the appropriate weather icons
 icon_map = {
-    "snow": ["snow", "sleet"],
-    "rain": ["rain"],
-    "cloud": ["fog", "cloudy", "partly-cloudy-day", "partly-cloudy-night"],
-    "sun": ["clear-day", "clear-night"],
-    "storm": [],
-    "wind": ["wind"]
+    "snow": [600, 601, 602, 611, 612, 613, 615, 616, 620, 621, 622],
+    "rain": [500, 501, 502, 503, 504, 511, 520, 521, 522, 531],
+    "drizzle": [300, 301, 302, 310, 311, 312, 313, 314, 321],
+    "cloud": [801, 802, 803, 804],
+    "sun": [800],
+    "storm": [200, 201, 202, 210, 211, 212, 221, 230, 231, 232],
+    "wind": [701, 711, 721, 731, 741, 751, 761, 762, 771, 781]
 }
 
 # Placeholder variables
@@ -133,18 +109,15 @@ pressure = 0
 temperature = 0
 weather_icon = None
 
-if weather:
-    temperature = weather["temperature"]
-    pressure = weather["pressure"]
-    summary = weather["summary"]
+# Pull out the appropriate values from the weather data
+pressure = weather["main"]["pressure"]
+temperature = weather["main"]["temp"]
+code = weather["weather"][0]["id"]
 
-    for icon in icon_map:
-        if summary in icon_map[icon]:
-            weather_icon = icon
-            break
-
-else:
-    print("Warning, no weather information found!")
+for icon in icon_map:
+    if code in icon_map[icon]:
+        weather_icon = icon
+        break
 
 # Create a new canvas to draw on
 img = Image.open(os.path.join(PATH, "resources/backdrop.png")).resize(inky_display.resolution)
@@ -172,7 +145,7 @@ datetime = time.strftime("%d/%m %H:%M")
 draw.text((36, 12), datetime, inky_display.WHITE, font=font)
 
 draw.text((72, 34), "T", inky_display.WHITE, font=font)
-draw.text((92, 34), u"{}°".format(temperature), inky_display.WHITE if temperature < WARNING_TEMP else inky_display.RED, font=font)
+draw.text((92, 34), u"{:.2f}°".format(temperature), inky_display.WHITE if temperature < WARNING_TEMP else inky_display.RED, font=font)
 
 draw.text((72, 58), "P", inky_display.WHITE, font=font)
 draw.text((92, 58), "{}".format(pressure), inky_display.WHITE, font=font)
