@@ -56,7 +56,7 @@ WARNING_TEMP = 25.0
 def get_weather(address):
     base = "http://api.openweathermap.org/data/2.5/weather?q="
     units = "units=metric"
-    api = "bdb2c0e7051c37f100278769685d64e9"
+    api = ""
 
     uri= base + address + "&" + units + "&appid=" + api
 
